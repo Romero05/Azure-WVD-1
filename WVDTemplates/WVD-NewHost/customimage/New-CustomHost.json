@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
@@ -25,8 +25,25 @@
       "type": "string",
       "metadata": {
         "description": "Provide ResourceID of your custom image"
+    },
+    "galleryName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Shared Image Gallery."
+        }
+    },
+    "galleryImageDefinitionName": {
+      "type": "string",
+      "metadata": {
+      "description": "Name of the Image Definition."
+        }
+    },
+      "galleryImageVersionName": {
+        "type": "string",
+        "metadata": {
+          "description": "Name of the Image Version - should follow <MajorVersion>.<MinorVersion>.<Patch>."
+        }
       }
-     
     },
     "VMSize": {
       "type": "string",
@@ -36,12 +53,6 @@
         "Medium",
         "Large"
       ]
-    },
-    "autoShutdownTime": {
-      "type": "string"
-    },
-    "autoShutdownTimeZone": {
-      "type": "string"
     },
     "VnetRgName": {
       "type": "string"
@@ -57,6 +68,13 @@
     },
     "RegistrationToken": {
       "type": "string"
+    },
+    "Optimize": {
+      "type": "bool",
+      "allowedValues": [
+        true,
+        false
+      ]
     }
   },
   "variables": {
@@ -71,12 +89,6 @@
         "publisher": "microsoftwindowsdesktop",
         "offer": "office-365",
         "sku": "1903-evd-o365pp",
-        "version": "latest"
-      },
-      "Multi": {
-        "publisher": "MicrosoftWindowsDesktop",
-        "offer": "Windows-10",
-        "sku": "19h1-evd",
         "version": "latest"
       }
     },
@@ -110,7 +122,7 @@
     "firstFileNameString": "[variables('UriFileNamePieces')[sub(length(variables('UriFileNamePieces')), 1)]]",
     "firstFileNameBreakString": "[split(variables('firstFileNameString'), '?')]",
     "firstFileName": "[variables('firstFileNameBreakString')[0]]",
-    "Arguments": "[string(concat('-ProfilePath ', parameters('ProfilePath'), ' -RegistrationToken ', parameters('RegistrationToken')))]"
+    "Arguments": "[string(concat('-ProfilePath ', parameters('ProfilePath'), ' -RegistrationToken ', parameters('RegistrationToken'), ' -Optimize ', parameters('Optimize')))]"
   },
   "resources": [
     {
@@ -139,10 +151,7 @@
           }
         ]
       },
-      "dependsOn": [
-        
-      ]
-
+      "dependsOn": []
     },
     {
       "type": "Microsoft.Compute/virtualMachines",
@@ -170,9 +179,9 @@
             }
           },
           "imageReference": {
-            "id": "[parameters('OperatingSystem')]"
+            "id": "[resourceId('Microsoft.Compute/galleries/images/versions', parameters('galleryName'), parameters('galleryImageDefinitionName'), parameters('galleryImageVersionName'))]"
           }
-        },      
+        },
         "networkProfile": {
           "networkInterfaces": [
             {
@@ -189,44 +198,13 @@
             "provisionVmAgent": true
           }
         },
-        "licenseType": "Windows_Server"
+        "licenseType": "[variables('License')[parameters('OperatingSystem')].License]"
       },
       "zones": [
         1
       ],
       "dependsOn": [
         "WVDNic-Copy"
-      ]
-    },
-    {
-      "name": "[concat('shutdown-computevm-', concat(variables('VMName'),copyIndex()))]",
-      "type": "Microsoft.DevTestLab/schedules",
-      "apiVersion": "2017-04-26-preview",
-      "location": "[resourceGroup().location]",
-      "tags": {
-        "costcode": "AA-Money",
-        "displayName": "Shutdown"
-      },
-      "copy": {
-        "name": "Shutdown-Copy",
-        "count": "[parameters('Instance')]"
-      },
-      "properties": {
-        "status": "enabled",
-        "taskType": "ComputeVmShutdownTask",
-        "dailyRecurrence": {
-          "time": "[parameters('autoShutdownTime')]"
-        },
-        "timeZoneId": "[parameters('autoShutdownTimeZone')]",
-        "targetResourceId": "[resourceId('Microsoft.Compute/virtualMachines', concat(variables('VMName'),copyIndex()))]",
-        "notificationSettings": {
-          "status": "Disabled",
-          "notificationLocale": "en",
-          "timeInMinutes": "30"
-        }
-      },
-      "dependsOn": [
-        "WVD-Copy"
       ]
     },
     {
@@ -257,7 +235,7 @@
         }
       },
       "dependsOn": [
-        "Shutdown-Copy"
+        "WVD-Copy"
       ]
     },
     {
@@ -288,7 +266,5 @@
       ]
     }
   ],
-  "outputs": {
-
-  }
+  "outputs": {}
 }
